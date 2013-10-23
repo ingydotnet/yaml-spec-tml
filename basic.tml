@@ -1,0 +1,13 @@
+%TestML 0.0.1
+
+%Data basic.data.tml
+
+test = (yaml, json) {
+    Label = "YAML Load works for $BlockLabel"
+    yaml.load_yaml_ok.OK
+
+    Label = "YAML matches JSON for $BlockLabel"
+    yaml.load_yaml.dump_json == json.load_json.dump_json
+}
+
+test(*yaml, *json)
