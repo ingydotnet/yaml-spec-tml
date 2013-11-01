@@ -1,0 +1,59 @@
+%PointMarker +++
+
+=== Just text
++++ yaml
+foo
+ bar
++++ str: "foo bar"
+
+
+=== On header
++++ yaml
+--- foo
++++ str: "foo"
+
+
+=== On header and after
++++ yaml
+--- foo
+ bar
++++ str: "foo bar"
+
+
+=== After header
++++ yaml
+---
+foo
+ bar
++++ str: "foo bar"
+
+
+=== Literal form
++++ yaml
+--- |
+foo
+ bar
++++ str: "foo\n bar\n"
+
+
+=== Folded form
++++ yaml
+--- >
+foo
+ bar
++++ str: "foo\nbar\n"
+
+
+=== Literal, no header
++++ yaml
+|
+foo
+ bar
++++ str: "foo\n bar\n"
+
+
+=== Double quoted with header
++++ yaml
+--- "foo
+bar"
++++ str: "foo bar"
