@@ -1,0 +1,44 @@
+%PointMarker +++
+
+=== Multiple Inline Scalars
++++ yaml-1_x
+--- foo
+--- bar
++++ json-list
+["foo","bar"]
+
+
+=== Mulitple Block Scalars
++++ yaml-1_x
+---
+foo
+---
+bar
+
+
+=== With document endings
++++ yaml-1_x
+---
+foo
+...
+---
+bar
+...
+
+
+=== Implicit first
++++ yaml-1_x
+foo
+---
+bar
+
+
+=== Only endings
++++ yaml-1_2
+foo
+...
+bar
+...
+
+
+
