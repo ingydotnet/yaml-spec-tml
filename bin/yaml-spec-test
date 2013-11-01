@@ -1,0 +1,118 @@
+#!/bin/bash
+
+set -e
+
+bin="${0##*/}"
+read -r -d '' usage <<... || true
+Usage:
+  $bin --help
+  $bin <tml file or url>
+  $bin <tml> [perl] [ruby] [python] [node]
+  $bin <tml> [perl_pm] [perl_xs] [perl_syck] [perl_tiny]
+  $bin <tml> [<implementations>] [<numbers>]
+
+Examples:
+  # Run 1st and 3rd block in basic.tml with YAML::XS and YAML::Tiny
+  $bin yaml-spec-test/basic.tml 1 3 perl_xs perl_tiny
+...
+
+[[ "$1" =~ ^(-h|-\?|--help|help)$ ]] && echo "$usage" && exit 0
+
+tml="${1:?tml file or url required}"; shift
+
+yamls=()
+nums=()
+
+for arg; do
+  case "$arg" in
+  -h|-?|--help|help)
+    echo "$usage"
+    exit 0
+    ;;
+  [0-9]*)
+    nums+=($arg)
+    ;;
+  perl)
+    yamls+=(perl_pm perl_xs perl_syck perl_tiny);;
+  ruby)
+    yamls+=(ruby_yaml ruby_psych);;
+  python)
+    yamls+=(python_yaml python_libyaml);;
+  node)
+    yamls+=(node_jsyaml);;
+  *)
+    yamls+=("$arg")
+  esac
+done
+[ ${#yamls[@]} -eq 0 ] && yamls=(
+  perl_pm perl_xs perl_syck perl_tiny
+  ruby_yaml ruby_psych
+  python_yaml python_libyaml
+  node_jsyaml
+)
+
+if [[ "$tml" =~ ^https?:// ]]; then
+  file=/tmp/"${tml##*/}"
+  [[ -f "$file" ]] || curl "$tml" > "$file"
+else
+  file="$tml"
+fi
+
+$(perl -MYAML -e1) &&
+  perl_pm=(perl -MYAML -MData::Dumper -e 'print Dumper Load shift' --)
+$(perl -MYAML::XS -e1) &&
+  perl_xs=(perl -MYAML::XS -MData::Dumper -e 'print Dumper Load shift' --)
+$(perl -MYAML::Syck -e1) &&
+  perl_syck=(perl -MYAML::Syck -MData::Dumper -e 'print Dumper Load shift' --)
+$(perl -MYAML::Tiny -e1) &&
+  perl_tiny=(perl -MYAML::Tiny -MData::Dumper -e 'print Dumper Load shift' --)
+
+multi-test() {
+  echo -n "\
+-------------------------------------------------------------------------------
+=== Loading the following YAML string:
+$point"
+
+  for yaml in "${yamls[@]}"; do
+    if [ -n "${!yaml}" ]; then
+      if [[ -n "${!yaml}" ]]; then
+        echo "--------------------- $yaml:"
+        eval "\"\${$yaml[@]}\"" "\"\${point[@]}\"" || true
+      fi
+    fi
+  done
+}
+
+check_num() {
+  [ ${#nums[@]} -eq 0 ] && return
+  for n in ${nums[@]}; do
+    [ $n -eq $num ] && return
+  done
+}
+
+read -r -d '' get_yaml_points <<'...' || true
+use TestML::Tiny;
+my $testml = do {local $/; <>};
+my $t = TestML::Tiny->new(testml => $testml, version => '0.1.0');
+for my $block (@{$t->{function}{data}}) {
+  for my $point (keys %$block) {
+    if ($point =~ /yaml/) {
+      print $block->{$point};
+      print "=====\n";
+    }
+  }
+}
+...
+
+echo '==============================================================================='
+num=1
+while read -r line; do
+  if [ "$line" == '=====' ]; then
+    check_num && multi-test
+    let num=num+1
+    set +x
+    point=()
+  else
+    point+=("$line"$'\n')
+  fi
+done <<<"$(cat $file | perl -e "$get_yaml_points")"

@@ -1,6 +1,4 @@
-%TestML 0.0.1
-
-%Data basic.data.tml
+%TestML 0.1.0
 
 test = (yaml, json) {
     Label = "YAML Load works for $BlockLabel"
@@ -11,3 +9,27 @@ test = (yaml, json) {
 }
 
 test(*yaml, *json)
+
+=== basic hash
+# This is just a simple one key hash.
+--- yaml
+a: b
+--- json
+{"a":"b"}
+
+=== double quoted keys
+--- yaml
+"a\nb": c
+--- json
+{"a\nb":"c"}
+--- dump
+"a\nb": c
+
+=== basic array
+# This is just a simple 2 element sequence
+--- yaml
+- a
+- b
+--- json
+["a","b"]
+
