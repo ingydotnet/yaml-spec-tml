@@ -2,10 +2,31 @@
 
 set -e
 
-cmd="$0 $@"
+main() {
+  init "$@"
+  get-options "$@"
+  setup
+  echo "###############################################################################"
+  echo "# ${0##*/} $@"
+  echo "###############################################################################"
 
-bin="${0##*/}"
-read -r -d '' usage <<... || true
+  while IFS='' read -r line; do
+    if [[ "$line" =~ ^===== ]]; then
+      let num=num+1
+      Label="$line"
+      if check_num; then
+        multi-test
+      fi
+      point=
+    else
+      printf -v point "%s%s\n" "$point" "$line"
+    fi
+  done <<<"$(cat $file | perl -e "$testml_parser")"
+}
+
+init() {
+  bin="${0##*/}"
+  read -r -d '' usage <<... || true
 Usage:
   $bin --help
   $bin <tml file or url>
@@ -17,63 +38,70 @@ Examples:
   # Run 1st and 3rd block in basic.tml with YAML::XS and YAML::Tiny
   $bin yaml-spec-test/basic.tml 1 3 perl_xs perl_tiny
 ...
+}
 
-[[ "$1" =~ ^(-h|-\?|--help|help)$ ]] && echo "$usage" && exit 0
+get-options() {
+  [[ "$1" =~ ^(-h|-\?|--help|help)$ ]] && echo "$usage" && exit 0
 
-tml="${1:?tml file or url required}"; shift
+  tml="${1:?tml file or url required}"; shift
 
-yamls=()
-nums=()
+  yamls=()
+  nums=()
 
-for arg; do
-  case "$arg" in
-  -h|-?|--help|help)
-    echo "$usage"
-    exit 0
-    ;;
-  [0-9]*)
-    nums+=($arg)
-    ;;
-  perl)
-    yamls+=(perl_pm perl_xs perl_syck perl_tiny);;
-  ruby)
-    yamls+=(ruby_yaml ruby_psych);;
-  python)
-    yamls+=(python_yaml python_libyaml);;
-  node)
-    yamls+=(node_jsyaml);;
-  *)
-    yamls+=("$arg")
-  esac
-done
-[ ${#yamls[@]} -eq 0 ] && yamls=(
-  perl_pm perl_xs perl_syck perl_tiny
-  ruby_yaml ruby_psych
-  python_yaml python_libyaml
-  node_jsyaml
-)
+  for arg; do
+    case "$arg" in
+    -h|-?|--help|help)
+      echo "$usage"
+      exit 0
+      ;;
+    [0-9]*)
+      nums+=($arg)
+      ;;
+    perl)
+      yamls+=(perl_pm perl_xs perl_syck perl_tiny);;
+    ruby)
+      yamls+=(ruby_yaml ruby_psych);;
+    python)
+      yamls+=(python_yaml python_libyaml);;
+    node)
+      yamls+=(node_jsyaml);;
+    *)
+      yamls+=("$arg")
+    esac
+  done
+  [ ${#yamls[@]} -eq 0 ] && yamls=(
+    perl_pm perl_xs perl_syck perl_tiny
+    ruby_yaml ruby_psych
+    python_yaml python_libyaml
+    node_jsyaml
+  )
+  :
+}
 
-if [[ "$tml" =~ ^https?:// ]]; then
-  file=/tmp/"${tml##*/}"
-  [[ -f "$file" ]] || curl "$tml" > "$file"
-else
-  file="$tml"
-fi
+setup() {
+  if [[ "$tml" =~ ^https?:// ]]; then
+    file=/tmp/"${tml##*/}"
+    [[ -f "$file" ]] || curl "$tml" > "$file"
+  else
+    file="$tml"
+  fi
 
-perl_exec=(
-  -MData::Dumper
-  -e '$Data::Dumper::Indent=1; $Data::Dumper::Terse = 1;'
-  -e 'print Dumper Load shift'
-  --
-)
-$(perl -MYAML -e1) &&
-  perl_pm=(perl -MYAML "${perl_exec[@]}")
-$(perl -MYAML::XS -e1) &&
-  perl_xs=(perl -MYAML::XS "${perl_exec[@]}")
-$(perl -MYAML::Syck -e1) &&
-  perl_syck=(perl -MYAML::Syck "${perl_exec[@]}")
-$(perl -MYAML::Tiny -e1) &&
-  perl_tiny=(perl -MYAML::Tiny "${perl_exec[@]}")
+  perl_exec=(
+    -MData::Dumper
+    -e '$Data::Dumper::Indent=1; $Data::Dumper::Terse = 1;'
+    -e 'print Dumper Load shift'
+    --
+  )
+  $(perl -MYAML -e1) &&
+    perl_pm=(perl -MYAML "${perl_exec[@]}")
+  $(perl -MYAML::XS -e1) &&
+    perl_xs=(perl -MYAML::XS "${perl_exec[@]}")
+  $(perl -MYAML::Syck -e1) &&
+    perl_syck=(perl -MYAML::Syck "${perl_exec[@]}")
+  $(perl -MYAML::Tiny -e1) &&
+    perl_tiny=(perl -MYAML::Tiny "${perl_exec[@]}")
+  :
+}
 
 multi-test() {
   echo -n "\
@@ -87,7 +115,7 @@ $point"
         printf -- "---------------------- Load using: %s %s\n" "$yaml" ${l:${#yaml}}
         (
           # set -x
-          eval \"\${$yaml[@]}\" \"\$point\"
+          eval \"\${$yaml[@]}\" \"\$point\" 2>&1
         ) || true
       fi
     fi
@@ -101,7 +129,8 @@ check_num() {
   done
 }
 
-read -r -d '' get_yaml_points <<'...' || true
+# Put this TestML parser script into a variable:
+read -r -d '' testml_parser <<'...' || true
 use TestML::Tiny;
 my $testml = do {local $/; <>};
 my $t = TestML::Tiny->new(testml => $testml, version => '0.1.0');
@@ -116,19 +145,4 @@ for my $block (@{$t->{function}{data}}) {
 }
 ...
 
-echo "###############################################################################"
-echo "# $cmd"
-echo "###############################################################################"
-
-while IFS='' read -r line; do
-  if [[ "$line" =~ ^===== ]]; then
-    Label="$line"
-    if check_num; then
-      multi-test
-    fi
-    let num=num+1
-    point=
-  else
-    printf -v point "%s%s\n" "$point" "$line"
-  fi
-done <<<"$(cat $file | perl -e "$get_yaml_points")"
+main "$@"
