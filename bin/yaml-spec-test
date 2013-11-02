@@ -2,6 +2,8 @@
 
 set -e
 
+cmd="$0 $@"
+
 bin="${0##*/}"
 read -r -d '' usage <<... || true
 Usage:
@@ -58,26 +60,35 @@ else
   file="$tml"
 fi
 
+perl_exec=(
+  -MData::Dumper
+  -e '$Data::Dumper::Indent=1; $Data::Dumper::Terse = 1;'
+  -e 'print Dumper Load shift'
+  --
+)
 $(perl -MYAML -e1) &&
-  perl_pm=(perl -MYAML -MData::Dumper -e 'print Dumper Load shift' --)
+  perl_pm=(perl -MYAML "${perl_exec[@]}")
 $(perl -MYAML::XS -e1) &&
-  perl_xs=(perl -MYAML::XS -MData::Dumper -e 'print Dumper Load shift' --)
+  perl_xs=(perl -MYAML::XS "${perl_exec[@]}")
 $(perl -MYAML::Syck -e1) &&
-  perl_syck=(perl -MYAML::Syck -MData::Dumper -e 'print Dumper Load shift' --)
+  perl_syck=(perl -MYAML::Syck "${perl_exec[@]}")
 $(perl -MYAML::Tiny -e1) &&
-  perl_tiny=(perl -MYAML::Tiny -MData::Dumper -e 'print Dumper Load shift' --)
+  perl_tiny=(perl -MYAML::Tiny "${perl_exec[@]}")
 
 multi-test() {
   echo -n "\
--------------------------------------------------------------------------------
-=== Loading the following YAML string:
+$Label
 $point"
 
   for yaml in "${yamls[@]}"; do
     if [ -n "${!yaml}" ]; then
       if [[ -n "${!yaml}" ]]; then
-        echo "--------------------- $yaml:"
-        eval "\"\${$yaml[@]}\"" "\"\${point[@]}\"" || true
+        l="-------------------------------------------"
+        printf -- "---------------------- Load using: %s %s\n" "$yaml" ${l:${#yaml}}
+        (
+          # set -x
+          eval \"\${$yaml[@]}\" \"\$point\"
+        ) || true
       fi
     fi
   done
@@ -94,25 +105,30 @@ read -r -d '' get_yaml_points <<'...' || true
 use TestML::Tiny;
 my $testml = do {local $/; <>};
 my $t = TestML::Tiny->new(testml => $testml, version => '0.1.0');
+my $num = 1;
 for my $block (@{$t->{function}{data}}) {
   for my $point (keys %$block) {
     if ($point =~ /yaml/) {
       print $block->{$point};
-      print "=====\n";
+      printf "========== %d) %s %s\n", $num++, $block->{Label}, '=' x (64 - length($block->{Label}));
     }
   }
 }
 ...
 
-echo '==============================================================================='
-num=1
-while read -r line; do
-  if [ "$line" == '=====' ]; then
-    check_num && multi-test
+echo "###############################################################################"
+echo "# $cmd"
+echo "###############################################################################"
+
+while IFS='' read -r line; do
+  if [[ "$line" =~ ^===== ]]; then
+    Label="$line"
+    if check_num; then
+      multi-test
+    fi
     let num=num+1
-    set +x
-    point=()
+    point=
   else
-    point+=("$line"$'\n')
+    printf -v point "%s%s\n" "$point" "$line"
   fi
 done <<<"$(cat $file | perl -e "$get_yaml_points")"
