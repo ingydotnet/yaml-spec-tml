@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# Usage:
+#
+#    cat file.yml | load-yaml-dump-json
+#    ./load-yaml-dump-json      # enter data and ctl-d when finished
+
+yaml=`cat`
+
+echo == Perl
+echo YAML.pm:
+echo "$yaml" | perl -0E 'use YAML; use JSON; say JSON->new->allow_nonref->encode($_) for Load(<>)'
+echo YAML::XS:
+echo "$yaml" | perl -0E 'use YAML::XS; use JSON; say JSON->new->allow_nonref->encode($_) for Load(<>)'
+echo YAML::Syck:
+echo "$yaml" | perl -0E 'use YAML::Syck; use JSON; say JSON->new->allow_nonref->encode($_) for Load(<>)'
+echo YAML::Tiny:
+echo "$yaml" | perl -0E 'use YAML::Tiny; use JSON; say JSON->new->allow_nonref->encode($_) for Load(<>)'
+
+# echo
+# echo == Python==
+# echo PyYaml:
+# echo "$yaml" | python -c 'import sys, yaml, json; print json.dumps(yaml.load(sys.stdin.read()))'
+# 
+# echo
+# echo == Ruby==
+# echo Psych:
+# echo "$yaml" | ruby -e 'require "yaml"; require "json"; puts JSON.dump(YAML.load(STDIN.read))'
+# 
+# echo
+# echo == Node.js ==
+# echo js-node:
+# echo "$yaml" | node -e 'f = require("fs"); y = require("js-yaml"); console.log(JSON.stringify(y.load(f.readFileSync("/dev/stdin").toString())))'
+
